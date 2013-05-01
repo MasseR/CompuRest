@@ -1,0 +1,9 @@
+%% -*- erlang -*-
+{application, minecraft,
+ [{description, "minecraft"},
+  {vsn, "0.1"},
+  {modules, []},
+  {registered, []},
+  {mod, {'minecraft_app', []}},
+  {env, []},
+  {applications, [kernel, stdlib, crypto]}]}.

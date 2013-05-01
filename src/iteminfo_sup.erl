@@ -43,7 +43,7 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
-    {ok, {{one_for_one, 5, 10}, [?CHILD('iteminfo', 'iteminfo', worker, [])]}}.
+    {ok, {{one_for_one, 5, 10}, [?CHILD('iteminfo_srv', 'iteminfo_srv', worker, [])]}}.
 
 %%%===================================================================
 %%% Internal functions

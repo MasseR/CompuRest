@@ -40,6 +40,15 @@ mc_response('POST', "/itemstats/dec/" ++ Key, Req) ->
     Count = list_to_integer(binary_to_list(Req:recv_body())),
     itemstats_srv:inc(Key, Count),
     Req:ok({"text/plain", "ok"});
+% Regular api
+mc_response('GET', "/iteminfo/name/" ++ Key, Req) ->
+    {"name", Name} = proplists:lookup("name", iteminfo_srv:get_item(Key)),
+    Req:ok({"text/plain", Name});
+mc_response('GET', "/iteminfo/full/" ++ Key, Req) ->
+    Req:ok({"text/json", mochijson2:encode([{K, list_to_binary(V)} || {K, V} <-iteminfo_srv:get_item(Key)])});
+mc_response('PUT', "/iteminfo/set/" ++ Key, Req) ->
+    iteminfo_srv:set_item(Key, mochiweb_util:parse_qs(Req:recv_body())),
+    Req:ok({"text/plain", "ok"});
 mc_response(_Method, _Path, Req) ->
     Req:not_found().
 

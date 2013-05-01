@@ -20,7 +20,7 @@
 %%%===================================================================
 
 set_item(Key, Info) ->
-    gen_server:call(?MODULE, {set, Key, Info}).
+    gen_server:cast(?MODULE, {set, Key, Info}).
 
 get_item(Key) ->
     gen_server:call(?MODULE, {get, Key}).
@@ -68,6 +68,14 @@ init([]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_call({get, Key}, _From, State) ->
+    Reply = case dets:lookup(?MODULE, Key) of
+        [ {Key, X} ] -> X;
+        Result ->
+            io:format("Not found: ~p~n", [Result]),
+            not_found
+    end,
+    {reply, Reply, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -82,6 +90,13 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_cast({set, Key, Value}, State) ->
+    {"name", Name} = proplists:lookup("name", Value),
+    Reversed = [{"name", Key} | proplists:delete("name", Value)],
+    io:format("Setting values ~p and ~p~n", [Value, Reversed]),
+    dets:insert(?MODULE, {Key, Value}),
+    dets:insert(?MODULE, {Name, Reversed}),
+    {noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 

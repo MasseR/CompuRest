@@ -27,15 +27,16 @@ loop(Req, _DocRoot) ->
 
 mc_response('GET', "/itemstats/get/" ++ Key, Req) ->
     Req:ok({"text/plain", integer_to_list(itemstats_srv:value(Key))});
-mc_response('PUT', "/itemstats/set/" ++ Key, Req) ->
+% This part of the API is supposed to be called by lua which doesn't support put
+mc_response('POST', "/itemstats/set/" ++ Key, Req) ->
     Count = list_to_integer(binary_to_list(Req:recv_body())),
     itemstats_srv:set(Key, Count),
     Req:ok({"text/plain", "ok"});
-mc_response('PUT', "/itemstats/inc/" ++ Key, Req) ->
+mc_response('POST', "/itemstats/inc/" ++ Key, Req) ->
     Count = list_to_integer(binary_to_list(Req:recv_body())),
     itemstats_srv:increment(Key, Count),
     Req:ok({"text/plain", "ok"});
-mc_response('PUT', "/itemstats/dec/" ++ Key, Req) ->
+mc_response('POST', "/itemstats/dec/" ++ Key, Req) ->
     Count = list_to_integer(binary_to_list(Req:recv_body())),
     itemstats_srv:inc(Key, Count),
     Req:ok({"text/plain", "ok"});

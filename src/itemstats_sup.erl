@@ -43,7 +43,6 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
-    io:format("Trying to start children"),
     {ok, {{one_for_one, 5, 10}, [?CHILD('itemstats_srv', 'itemstats_srv', worker, [])]}}.
 
 %%%===================================================================

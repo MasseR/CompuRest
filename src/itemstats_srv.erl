@@ -20,7 +20,6 @@
 %%%===================================================================
 
 value(Key) ->
-    io:format("Trying to lookup (root) ~p~n", [Key]),
     gen_server:call(?MODULE, {get, Key}).
 
 set(Key, Value) ->
@@ -40,7 +39,6 @@ decrement(Key, Amount) ->
 %% @end
 %%--------------------------------------------------------------------
 start_link() ->
-    io:format("Starting gen_server"),
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %%%===================================================================
@@ -77,7 +75,6 @@ init([]) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_call({get, Key}, _From, State) ->
-    io:format("Trying to lookup ~p~n", [Key]),
     {reply, internal_value(Key), State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
@@ -98,7 +95,6 @@ handle_cast({put, Key, Value}, State) ->
     {noreply, State};
 handle_cast({inc, Key, Value}, State) ->
     OldValue = internal_value(Key),
-    io:format("Incrementing ~p + ~p~n", [OldValue, Value]),
     NewValue = case OldValue + Value of
         X when X < 0 -> 0;
         X -> X
@@ -169,8 +165,6 @@ internal_value(Key) ->
     case dets:lookup(?MODULE, Key) of
         [] -> 0;
         [ {Key, X} ] -> X;
-        Res ->
-            io:format("~p~n", [Res]),
-            0
+        _Res -> 0
     end.
 

@@ -71,9 +71,7 @@ init([]) ->
 handle_call({get, Key}, _From, State) ->
     Reply = case dets:lookup(?MODULE, Key) of
         [ {Key, X} ] -> X;
-        Result ->
-            io:format("Not found: ~p~n", [Result]),
-            not_found
+        _Result -> not_found
     end,
     {reply, Reply, State};
 handle_call(_Request, _From, State) ->
@@ -93,7 +91,6 @@ handle_call(_Request, _From, State) ->
 handle_cast({set, Key, Value}, State) ->
     {"name", Name} = proplists:lookup("name", Value),
     Reversed = [{"name", Key} | proplists:delete("name", Value)],
-    io:format("Setting values ~p and ~p~n", [Value, Reversed]),
     dets:insert(?MODULE, {Key, Value}),
     dets:insert(?MODULE, {Name, Reversed}),
     {noreply, State};

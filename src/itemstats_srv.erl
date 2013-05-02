@@ -99,7 +99,17 @@ handle_call(_Request, _From, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_cast({put, Key, TurtleId, Value}, State) ->
+    NewSet = case dets:lookup(?MODULE, turtles) of
+        [ {turtles, Set} ] -> sets:add_element(TurtleId, Set);
+        [] -> sets:add_element(TurtleId, sets:new())
+    end,
+    NewTurtleSet = case dets:lookup(?MODULE, "turtle-" ++ TurtleId) of
+        [ { "turtle" ++ TurtleId, TurtleSet } ] -> sets:add_element(Key, TurtleSet);
+        [] -> sets:add_element(Key, sets:new())
+    end,
     dets:insert(?MODULE, {make_key(Key, TurtleId), Value}),
+    dets:insert(?MODULE, {turtles, NewSet}),
+    dets:insert(?MODULE, {"turtle-" ++ TurtleId, NewTurtleSet}),
     {noreply, State};
 handle_cast({inc, Key, TurtleId, Value}, State) ->
     OldValue = internal_value(Key, TurtleId),

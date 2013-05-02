@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, value/1, set/2, increment/2, decrement/2]).
+-export([start_link/0, value/1, value/2, set/3, set/2, increment/2, increment/3, decrement/2, decrement/3]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -21,15 +21,23 @@
 
 value(Key) ->
     gen_server:call(?MODULE, {get, Key}).
+value(Key, TurtleId) ->
+    gen_server:call(?MODULE, {get, Key, TurtleId}).
 
+set(Key, TurtleId, Value) ->
+    gen_server:cast(?MODULE, {put, Key, TurtleId, Value}).
 set(Key, Value) ->
-    gen_server:cast(?MODULE, {put, Key, Value}).
+    set(Key, 0, Value).
 
 increment(Key, Amount) ->
-    gen_server:cast(?MODULE, {inc, Key, Amount}).
+    increment(Key, 0, Amount).
+increment(Key, TurtleId, Amount) ->
+    gen_server:cast(?MODULE, {inc, Key, TurtleId, Amount}).
 
 decrement(Key, Amount) ->
-    increment(Key, -Amount).
+    increment(Key, 0, -Amount).
+decrement(Key, TurtleId, Amount) ->
+    increment(Key, TurtleId, -Amount).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -74,8 +82,8 @@ init([]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_call({get, Key}, _From, State) ->
-    {reply, internal_value(Key), State};
+handle_call({get, Key, TurtleId}, _From, State) ->
+    {reply, internal_value(Key, TurtleId), State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -90,11 +98,11 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({put, Key, Value}, State) ->
-    dets:insert(?MODULE, {Key, Value}),
+handle_cast({put, Key, TurtleId, Value}, State) ->
+    dets:insert(?MODULE, {make_key(Key, TurtleId), Value}),
     {noreply, State};
-handle_cast({inc, Key, Value}, State) ->
-    OldValue = internal_value(Key),
+handle_cast({inc, Key, TurtleId, Value}, State) ->
+    OldValue = internal_value(Key, TurtleId),
     NewValue = case OldValue + Value of
         X when X < 0 -> 0;
         X -> X
@@ -161,10 +169,11 @@ dets_open(Filename) ->
 dets_close() ->
     dets:close(?MODULE).
 
-internal_value(Key) ->
-    case dets:lookup(?MODULE, Key) of
+internal_value(Key, TurtleId) ->
+    case dets:lookup(?MODULE, make_key(Key, TurtleId)) of
         [] -> 0;
         [ {Key, X} ] -> X;
         _Res -> 0
     end.
 
+make_key(Key, TurtleId) -> TurtleId ++ "-" ++ Key.

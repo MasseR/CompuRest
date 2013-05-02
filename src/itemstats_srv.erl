@@ -82,6 +82,8 @@ init([]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_call({get, Key}, _From, State) ->
+    {reply, internal_aggregate_value(Key), State};
 handle_call({get, Key, TurtleId}, _From, State) ->
     {reply, internal_value(Key, TurtleId), State};
 handle_call(_Request, _From, State) ->
@@ -185,5 +187,13 @@ internal_value(Key, TurtleId) ->
         [ {Key, X} ] -> X;
         _Res -> 0
     end.
+
+% Full scan for now
+internal_aggregate_value(Key) ->
+    Turtles = case dets:lookup(?MODULE, turtles) of
+        [ {turtles, X} ] -> X;
+        [] -> sets:new()
+    end,
+    sets:fold(fun(Turtle, Acc) -> Acc + internal_value(Key, Turtle) end, 0, Turtles).
 
 make_key(Key, TurtleId) -> TurtleId ++ "-" ++ Key.

@@ -30,15 +30,24 @@ mc_response('GET', "/itemstats/get/" ++ Key, Req) ->
 % This part of the API is supposed to be called by lua which doesn't support put
 mc_response('POST', "/itemstats/set/" ++ Key, Req) ->
     Count = list_to_integer(binary_to_list(Req:recv_body())),
-    itemstats_srv:set(Key, Count),
+    case string:tokens(Key, "/") of
+        [ TurtleId, RealKey ] -> itemstats_srv:set(RealKey, TurtleId, Count);
+        [ RealKey ] -> itemstats_srv:set(RealKey, Count)
+    end,
     Req:ok({"text/plain", "ok"});
 mc_response('POST', "/itemstats/inc/" ++ Key, Req) ->
     Count = list_to_integer(binary_to_list(Req:recv_body())),
-    itemstats_srv:increment(Key, Count),
+    case string:tokens(Key, "/") of
+        [ TurtleId, RealKey ] -> itemstats_srv:increment(RealKey, TurtleId, Count);
+        [ RealKey ] -> itemstats_srv:increment(RealKey, Count)
+    end,
     Req:ok({"text/plain", "ok"});
 mc_response('POST', "/itemstats/dec/" ++ Key, Req) ->
     Count = list_to_integer(binary_to_list(Req:recv_body())),
-    itemstats_srv:inc(Key, Count),
+    case string:tokens(Key, "/") of
+        [ TurtleId, RealKey ] -> itemstats_srv:decrement(RealKey, TurtleId, Count);
+        [ RealKey ] -> itemstats_srv:decrement(RealKey, Count)
+    end,
     Req:ok({"text/plain", "ok"});
 % Regular api
 mc_response('GET', "/iteminfo/name/" ++ Key, Req) ->

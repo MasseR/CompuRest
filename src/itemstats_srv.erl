@@ -106,7 +106,7 @@ handle_cast({put, Key, TurtleId, Value}, State) ->
         [] -> sets:add_element(TurtleId, sets:new())
     end,
     NewTurtleSet = case dets:lookup(?MODULE, "turtle-" ++ TurtleId) of
-        [ { "turtle" ++ TurtleId, TurtleSet } ] -> sets:add_element(Key, TurtleSet);
+        [ { _, TurtleSet } ] -> sets:add_element(Key, TurtleSet);
         [] -> sets:add_element(Key, sets:new())
     end,
     dets:insert(?MODULE, {make_key(Key, TurtleId), Value}),
@@ -146,8 +146,7 @@ handle_info(_Info, State) ->
 %% with Reason. The return value is ignored.
 %%
 %% @spec terminate(Reason, State) -> void()
-%% @end
-%%--------------------------------------------------------------------
+%% @end %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
     dets_close(),
     ok.
@@ -184,7 +183,7 @@ dets_close() ->
 internal_value(Key, TurtleId) ->
     case dets:lookup(?MODULE, make_key(Key, TurtleId)) of
         [] -> 0;
-        [ {Key, X} ] -> X;
+        [ {_, X} ] -> X;
         _Res -> 0
     end.
 

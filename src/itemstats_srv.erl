@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, value/1, value/2, set/3, set/2, increment/2, increment/3, decrement/2, decrement/3]).
+-export([start_link/0, value/1, value/2, set/3, set/2, increment/2, increment/3, decrement/2, decrement/3, owners/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -38,6 +38,9 @@ decrement(Key, Amount) ->
     increment(Key, 0, -Amount).
 decrement(Key, TurtleId, Amount) ->
     increment(Key, TurtleId, -Amount).
+
+owners(ItemId) ->
+    gen_server:call(?MODULE, {owners, ItemId}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -84,6 +87,10 @@ init([]) ->
 %%--------------------------------------------------------------------
 handle_call({get, Key}, _From, State) ->
     {reply, internal_aggregate_value(Key), State};
+handle_call({owners, ItemId}, _From, State) ->
+    Turtles = dets:lookup(?MODULE, ItemId),
+    TurtlesWithCount = [{TurtleId, internal_value(ItemId, TurtleId)} || TurtleId <- Turtles],
+    {reply, TurtlesWithCount, State};
 handle_call({get, Key, TurtleId}, _From, State) ->
     {reply, internal_value(Key, TurtleId), State};
 handle_call(_Request, _From, State) ->
@@ -102,23 +109,28 @@ handle_call(_Request, _From, State) ->
 %%--------------------------------------------------------------------
 handle_cast({put, Key, TurtleId, Value}, State) ->
     NewSet = case dets:lookup(?MODULE, turtles) of
-        [ {turtles, Set} ] -> sets:add_element(TurtleId, Set);
-        [] -> sets:add_element(TurtleId, sets:new())
-    end,
+                 [ {turtles, Set} ] -> sets:add_element(TurtleId, Set);
+                 [] -> sets:add_element(TurtleId, sets:new())
+             end,
     NewTurtleSet = case dets:lookup(?MODULE, "turtle-" ++ TurtleId) of
-        [ { _, TurtleSet } ] -> sets:add_element(Key, TurtleSet);
-        [] -> sets:add_element(Key, sets:new())
-    end,
+                       [ { _, TurtleSet } ] -> sets:add_element(Key, TurtleSet);
+                       [] -> sets:add_element(Key, sets:new())
+                   end,
+    NewItemSet = case dets:lookup(?MODULE, Key) of
+                     [{_, ItemSet}] -> sets:add_element(TurtleId, ItemSet);
+                     [] -> sets:add_element(TurtleId, sets:new())
+                 end,
     dets:insert(?MODULE, {make_key(Key, TurtleId), Value}),
     dets:insert(?MODULE, {turtles, NewSet}),
     dets:insert(?MODULE, {"turtle-" ++ TurtleId, NewTurtleSet}),
+    dets:insert(?MODULE, {Key, NewItemSet}),
     {noreply, State};
 handle_cast({inc, Key, TurtleId, Value}, State) ->
     OldValue = internal_value(Key, TurtleId),
     NewValue = case OldValue + Value of
-        X when X < 0 -> 0;
-        X -> X
-    end,
+                   X when X < 0 -> 0;
+                   X -> X
+               end,
     dets:insert(?MODULE, {Key, NewValue}),
     {noreply, State};
 handle_cast(_Msg, State) ->

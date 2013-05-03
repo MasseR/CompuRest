@@ -88,7 +88,10 @@ init([]) ->
 handle_call({get, Key}, _From, State) ->
     {reply, internal_aggregate_value(Key), State};
 handle_call({owners, ItemId}, _From, State) ->
-    Turtles = dets:lookup(?MODULE, ItemId),
+    Turtles = case dets:lookup(?MODULE, ItemId) of
+                  [{_, T}] -> sets:to_list(T);
+                  [] -> []
+              end,
     TurtlesWithCount = [{TurtleId, internal_value(ItemId, TurtleId)} || TurtleId <- Turtles],
     {reply, TurtlesWithCount, State};
 handle_call({get, Key, TurtleId}, _From, State) ->

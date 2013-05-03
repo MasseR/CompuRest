@@ -16,6 +16,7 @@ start(_Type, _StartArgs) ->
     minecraft_deps:ensure(),
     itemstats_sup:start_link(),
     iteminfo_sup:start_link(),
+    statistics_sup:start_link(),
     minecraft_sup:start_link().
 
 %% @spec stop(_State) -> ServerRet

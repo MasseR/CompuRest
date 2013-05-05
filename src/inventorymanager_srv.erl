@@ -1,9 +1,9 @@
--module(itemstats_srv).
+-module(inventorymanager_srv).
 
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, value/1, value/2, set/3, set/2, increment/2, increment/3, decrement/2, decrement/3, owners/1]).
+-export([start_link/1, get_turtles/2, turtle_item/1, turtle_max/1, change_max/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -13,34 +13,29 @@
          terminate/2,
          code_change/3]).
 
--record(state, {}).
+-record(state, {max}).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 
-value(Key) ->
-    gen_server:call(?MODULE, {get, Key}).
-value(Key, TurtleId) ->
-    gen_server:call(?MODULE, {get, Key, TurtleId}).
+%%---------
+%% @doc
+%% Return a list of turtles and item counts
+%%
+%% @end
+%%--------
+get_turtles(ItemId, Count) ->
+    gen_server:call(?MODULE, {get, ItemId, Count}).
 
-set(Key, TurtleId, Value) ->
-    gen_server:cast(?MODULE, {put, Key, TurtleId, Value}).
-set(Key, Value) ->
-    set(Key, 0, Value).
+turtle_item(TurtleId) ->
+    gen_server:call(?MODULE, {turtle_item, TurtleId}).
 
-increment(Key, Amount) ->
-    increment(Key, 0, Amount).
-increment(Key, TurtleId, Amount) ->
-    gen_server:cast(?MODULE, {inc, Key, TurtleId, Amount}).
+turtle_max(TurtleId) ->
+    gen_server:call(?MODULE, {turtle_max, TurtleId}).
 
-decrement(Key, Amount) ->
-    increment(Key, 0, -Amount).
-decrement(Key, TurtleId, Amount) ->
-    increment(Key, TurtleId, -Amount).
-
-owners(ItemId) ->
-    gen_server:call(?MODULE, {owners, ItemId}).
+change_max(Max) ->
+    gen_server:cast(?MODULE, {new_max, Max}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -49,8 +44,8 @@ owners(ItemId) ->
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link(Max) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Max], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -67,9 +62,8 @@ start_link() ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([]) ->
-    dets_open("itemstats"),
-    {ok, #state{}}.
+init([Max]) ->
+    {ok, #state{max=Max}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -85,17 +79,14 @@ init([]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_call({get, Key}, _From, State) ->
-    {reply, internal_aggregate_value(Key), State};
-handle_call({owners, ItemId}, _From, State) ->
-    Turtles = case dets:lookup(?MODULE, ItemId) of
-                  [{_, T}] -> sets:to_list(T);
-                  [] -> []
-              end,
-    TurtlesWithCount = [{TurtleId, internal_value(ItemId, TurtleId)} || TurtleId <- Turtles],
-    {reply, TurtlesWithCount, State};
-handle_call({get, Key, TurtleId}, _From, State) ->
-    {reply, internal_value(Key, TurtleId), State};
+handle_call({get, ItemId, Count}, _From, State) ->
+    Turtles = itemstats_srv:owners(ItemId),
+    Used = case itemstats_srv:value(ItemId) of
+               X when X < Count -> Turtles;
+               _ -> consume(Turtles, Count)
+           end,
+    lists:foreach(fun({TurtleId, UsedCount}) -> itemstats_srv:decrement(ItemId, TurtleId, UsedCount) end, Used),
+    {reply, Used, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -110,34 +101,12 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({put, Key, TurtleId, Value}, State) ->
-    NewSet = case dets:lookup(?MODULE, turtles) of
-                 [ {turtles, Set} ] -> sets:add_element(TurtleId, Set);
-                 [] -> sets:add_element(TurtleId, sets:new())
-             end,
-    NewTurtleSet = case dets:lookup(?MODULE, "turtle-" ++ TurtleId) of
-                       [ { _, TurtleSet } ] -> sets:add_element(Key, TurtleSet);
-                       [] -> sets:add_element(Key, sets:new())
-                   end,
-    NewItemSet = case dets:lookup(?MODULE, Key) of
-                     [{_, ItemSet}] -> sets:add_element(TurtleId, ItemSet);
-                     [] -> sets:add_element(TurtleId, sets:new())
-                 end,
-    dets:insert(?MODULE, {make_key(Key, TurtleId), Value}),
-    dets:insert(?MODULE, {turtles, NewSet}),
-    dets:insert(?MODULE, {"turtle-" ++ TurtleId, NewTurtleSet}),
-    dets:insert(?MODULE, {Key, NewItemSet}),
-    {noreply, State};
-handle_cast({inc, Key, TurtleId, Value}, State) ->
-    OldValue = internal_value(Key, TurtleId),
-    NewValue = case OldValue + Value of
-                   X when X < 0 -> 0;
-                   X -> X
-               end,
-    handle_cast({put, Key, TurtleId, NewValue}, State),
-    {noreply, State};
+
+handle_cast({new_max, Max}, State) ->
+    {noreply, State#state{max=Max}};
 handle_cast(_Msg, State) ->
     {noreply, State}.
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -163,7 +132,6 @@ handle_info(_Info, State) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
-    dets_close(),
     ok.
 
 %%--------------------------------------------------------------------
@@ -181,33 +149,14 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-dets_open(Filename) ->
-    Bool = filelib:is_file(Filename),
-    case dets:open_file(?MODULE, {file, Filename}) of
-        {ok, ?MODULE} ->
-            case Bool of
-                true -> void;
-                false -> ok = dets:insert(?MODULE, {free, 1})
-            end,
-            true
+consume(Turtles, Count) ->
+    consume(Turtles, Count, []).
+
+consume(_Turtles, 0, Acc) -> Acc;
+consume([{TurtleId, Count}|Xs], Left, Acc) ->
+    case Left < Count of
+        true ->
+            consume(Xs, 0, [{TurtleId, Left} | Acc]);
+        false ->
+            consume(Xs, Left - Count, [{TurtleId, Count} | Acc])
     end.
-
-dets_close() ->
-    dets:close(?MODULE).
-
-internal_value(Key, TurtleId) ->
-    case dets:lookup(?MODULE, make_key(Key, TurtleId)) of
-        [] -> 0;
-        [ {_, X} ] -> X;
-        _Res -> 0
-    end.
-
-% Full scan for now
-internal_aggregate_value(Key) ->
-    Turtles = case dets:lookup(?MODULE, turtles) of
-        [ {turtles, X} ] -> X;
-        [] -> sets:new()
-    end,
-    sets:fold(fun(Turtle, Acc) -> Acc + internal_value(Key, Turtle) end, 0, Turtles).
-
-make_key(Key, TurtleId) -> TurtleId ++ "-" ++ Key.

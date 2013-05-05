@@ -43,7 +43,11 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
-    {ok, {{one_for_one, 5, 10}, [?CHILD('itemstats_srv', 'itemstats_srv', worker, [])]}}.
+    Max = case application:get_env(minecraft, max_items) of
+              {ok, M} -> M;
+              undefined -> 4096
+          end,
+    {ok, {{one_for_one, 5, 10}, [?CHILD('itemstats_srv', 'itemstats_srv', worker, []), ?CHILD('inventorymanager_srv', 'inventorymanager_srv', worker, [Max])]}}.
 
 %%%===================================================================
 %%% Internal functions
